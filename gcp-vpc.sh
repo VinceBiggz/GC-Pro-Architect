@@ -112,7 +112,7 @@ gcloud compute vpn-tunnels create vpc-demo-tunnel0 \
     --peer-gcp-gateway on-prem-vpn-gw1 \
     --region us-central1 \
     --ike-version 2 \
-    --shared-secret [SHARED_SECRET] \
+    --shared-secret '[SHARED_SECRET]' \
     --router vpc-demo-router1 \
     --vpn-gateway vpc-demo-vpn-gw1 \
     --interface 0
@@ -122,7 +122,7 @@ gcloud compute vpn-tunnels create vpc-demo-tunnel1 \
     --peer-gcp-gateway on-prem-vpn-gw1 \
     --region us-central1 \
     --ike-version 2 \
-    --shared-secret [SHARED_SECRET] \
+    --shared-secret '[SHARED_SECRET]' \
     --router vpc-demo-router1 \
     --vpn-gateway vpc-demo-vpn-gw1 \
     --interface 1
@@ -132,7 +132,7 @@ gcloud compute vpn-tunnels create on-prem-tunnel0 \
     --peer-gcp-gateway vpc-demo-vpn-gw1 \
     --region us-central1 \
     --ike-version 2 \
-    --shared-secret [SHARED_SECRET] \
+    --shared-secret '[SHARED_SECRET]' \
     --router on-prem-router1 \
     --vpn-gateway on-prem-vpn-gw1 \
     --interface 0
@@ -142,7 +142,7 @@ gcloud compute vpn-tunnels create on-prem-tunnel1 \
     --peer-gcp-gateway vpc-demo-vpn-gw1 \
     --region us-central1 \
     --ike-version 2 \
-    --shared-secret [SHARED_SECRET] \
+    --shared-secret '[SHARED_SECRET]' \
     --router on-prem-router1 \
     --vpn-gateway on-prem-vpn-gw1 \
     --interface 1

@@ -1,0 +1,70 @@
+#!/bin/bash
+# Author: Vincent Wachira <vwachira@opencapital.com>
+# Static inspection only. Instructional cloud scripts are never executed.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 2
+cd "$repo_root" || exit 2
+verify_tool() {
+  if [ ! -x ".tools/$1" ] || [ "$(shasum -a 256 ".tools/$1" | cut -d ' ' -f 1)" != "$2" ]; then
+    echo "check unavailable: run bin/setup for pinned $1" >&2
+    exit 2
+  fi
+}
+verify_tool shellcheck 61c17246d69f012cd458ae82f244c46023dac75d1b69733ca1cc7d28fb270fd7
+verify_tool gitleaks ba52fb1bfabbcde42f032afad3d6e0b19dff8ed105229a16e7caa338bbc0e84f
+command -v python3 >/dev/null || { echo "check unavailable: python3 missing" >&2; exit 2; }
+for script in gcp-vpc.sh load-balancer.sh bin/setup bin/check .githooks/pre-push; do
+  [ -f "$script" ] || { echo "check unavailable: missing script" >&2; exit 2; }
+  /bin/bash -n "$script" || exit 1
+  rc=0
+  .tools/shellcheck -s bash --severity=style "$script" || rc=$?
+  case "$rc" in 0) ;; 1) exit 1 ;; *) echo "check unavailable: ShellCheck runtime" >&2; exit 2 ;; esac
+done
+rc=0
+python3 - <<'PYCODE' || rc=$?
+import os, pathlib, shutil, subprocess, tempfile, sys
+def unavailable(kind,value,traceback):
+    print('check unavailable: scanner/filesystem prerequisite',file=sys.stderr)
+    sys.exit(2)
+sys.excepthook=unavailable
+root=pathlib.Path.cwd()
+env=os.environ.copy()
+for name in ('GITLEAKS_CONFIG','GITLEAKS_CONFIG_TOML'):
+    env.pop(name,None)
+def git_output(args):
+    result=subprocess.run(['git',*args],capture_output=True)
+    if result.returncode:
+        print('check unavailable: Git prerequisite',file=sys.stderr);sys.exit(2)
+    return result.stdout
+git_output(['rev-parse','--verify','HEAD'])
+# Confirm full history is readable before invoking a scanner that may swallow Git errors.
+git_output(['log','--all','HEAD','--format=%H'])
+logopts='--all HEAD'
+with tempfile.TemporaryDirectory(prefix='gc-architect-check-') as temp:
+    temp=pathlib.Path(temp)
+    config=temp/'config.toml';config.write_text('[extend]\nuseDefault = true\n')
+    ignore=temp/'ignore';ignore.write_text('')
+    snapshot=temp/'snapshot';snapshot.mkdir()
+    paths=git_output(['ls-files','-z','--cached','--others','--exclude-standard']).split(b'\0')
+    for raw in set(paths):
+        if not raw:continue
+        relative=pathlib.Path(os.fsdecode(raw));source=root/relative
+        if relative.is_absolute() or '..' in relative.parts or source.is_symlink():
+            print('check RED: unsafe snapshot path',file=sys.stderr);sys.exit(1)
+        if not source.exists():continue
+        if not source.is_file():
+            print('check unavailable: unsupported snapshot entry',file=sys.stderr);sys.exit(2)
+        target=snapshot/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,target)
+    flags=['--exit-code=10','--redact=100','--no-banner','--no-color','--ignore-gitleaks-allow',
+           '--config',str(config),'--gitleaks-ignore-path',str(ignore)]
+    for args in (['git',str(root),'--log-opts='+logopts],['dir',str(snapshot)]):
+        result=subprocess.run([str(root/'.tools/gitleaks'),*args,*flags],env=env,capture_output=True)
+        # Suppress all scanner output, including source context in diagnostics.
+        if result.returncode==10:
+            print('check RED: redacted secret scan findings',file=sys.stderr);sys.exit(1)
+        if result.returncode:
+            print('check unavailable: secret scanner runtime',file=sys.stderr);sys.exit(2)
+print('check GREEN: Bash 3.2 syntax, all ShellCheck levels, full reachable history and tracked/changed snapshot secret scans')
+PYCODE
+case "$rc" in 0) exit 0 ;; 1) exit 1 ;; *) exit 2 ;; esac

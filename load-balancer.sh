@@ -5,9 +5,9 @@ export REGION="${ZONE%-*}"
 gcloud compute networks create nucleus-vpc --subnet-mode=auto
 
 # Create a compute instance named $INSTANCE_NAME within the nucleus-vpc network, in the specified zone, with specified machine type and Debian 10 image.
-gcloud compute instances create $INSTANCE_NAME \
+gcloud compute instances create "$INSTANCE_NAME" \
           --network nucleus-vpc \
-          --zone $ZONE  \
+          --zone "$ZONE"  \
           --machine-type e2-micro  \
           --image-family debian-10  \
           --image-project debian-cloud 
@@ -16,11 +16,11 @@ gcloud compute instances create $INSTANCE_NAME \
 gcloud container clusters create nucleus-backend \
           --num-nodes 1 \
           --network nucleus-vpc \
-          --zone $ZONE
+          --zone "$ZONE"
 
 # Get credentials for the "nucleus-backend" GKE cluster in the specified zone.
 gcloud container clusters get-credentials nucleus-backend \
-          --zone $ZONE
+          --zone "$ZONE"
 
 # Create a Kubernetes deployment named "hello-server" using the specified Docker image.
 kubectl create deployment hello-server \
@@ -29,7 +29,7 @@ kubectl create deployment hello-server \
 # Expose the "hello-server" deployment to the internet as a LoadBalancer service on the specified port.
 kubectl expose deployment hello-server \
           --type=LoadBalancer \
-          --port $PORT
+          --port "$PORT"
 
 # Create a startup script named "startup.sh" to update packages, install nginx, start nginx, and modify the default nginx page.
 cat << EOF > startup.sh
@@ -45,20 +45,20 @@ gcloud compute instance-templates create web-server-template \
           --metadata-from-file startup-script=startup.sh \
           --network nucleus-vpc \
           --machine-type g1-small \
-          --region $ZONE
+          --region "$ZONE"
 
 # Create a target pool named "nginx-pool" in the specified region.
-gcloud compute target-pools create nginx-pool --region=$REGION
+gcloud compute target-pools create nginx-pool --region="$REGION"
 
 # Create a managed instance group named "web-server-group" with 2 instances, using the "web-server-template", in the specified region.
 gcloud compute instance-groups managed create web-server-group \
           --base-instance-name web-server \
           --size 2 \
           --template web-server-template \
-          --region $REGION
+          --region "$REGION"
 
 # Create a firewall rule allowing TCP traffic on port 80 within the nucleus-vpc network.
-gcloud compute firewall-rules create $FIREWALL_NAME \
+gcloud compute firewall-rules create "$FIREWALL_NAME" \
           --allow tcp:80 \
           --network nucleus-vpc
 
@@ -69,7 +69,7 @@ gcloud compute http-health-checks create http-basic-check
 gcloud compute instance-groups managed \
 set-named-ports web-server-group \
           --named-ports http:80 \
-          --region $REGION
+          --region "$REGION"
 
 # Create an HTTP backend service named "web-server-backend" with HTTP protocol and linked to the "http-basic-check" health check, globally.
 gcloud compute backend-services create web-server-backend \
@@ -80,7 +80,7 @@ gcloud compute backend-services create web-server-backend \
 # Add the "web-server-group" as a backend to the "web-server-backend" service, globally.
 gcloud compute backend-services add-backend web-server-backend \
           --instance-group web-server-group \
-          --instance-group-region $REGION \
+          --instance-group-region "$REGION" \
           --global
 
 # Create a URL map named "web-server-map" with the "web-server-backend" as the default service.
@@ -98,7 +98,7 @@ gcloud compute forwarding-rules create http-content-rule \
           --ports 80
 
 # Create a global forwarding rule with the specified name to route incoming HTTP traffic to the "http-lb-proxy" target HTTP proxy on port 80.
-gcloud compute forwarding-rules create $FIREWALL_NAME \
+gcloud compute forwarding-rules create "$FIREWALL_NAME" \
           --global \
           --target-http-proxy http-lb-proxy \
           --ports 80
