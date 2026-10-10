@@ -4,15 +4,11 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 2
 cd "$repo_root" || exit 2
-head=$(git rev-parse --verify HEAD 2>/dev/null) || exit 2
+objects=()
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ -n "$local_ref" ] || continue
   [ -n "$remote_ref" ] && [ -n "$remote_sha" ] || exit 2
   [ "$local_sha" != 0000000000000000000000000000000000000000 ] || continue
-  source=$(git rev-parse --verify "${local_sha}^{commit}" 2>/dev/null) || exit 2
-  if [ "$source" != "$head" ]; then
-    echo "push rejected: outgoing ref must equal locally checked HEAD" >&2
-    exit 1
-  fi
+  objects+=("$local_sha")
 done
-exec /bin/bash bin/check
+exec /bin/bash bin/check "${objects[@]}"
